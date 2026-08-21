@@ -1,0 +1,83 @@
+# MungPick 백엔드(Back) 개발 환경 초기 세팅 및 실행 가이드 (yarn, nodemon 기준)
+
+## 1. 레포지토리 클론 및 폴더 이동:
+git clone [레포지토리 주소]
+cd mungpick/back
+---
+
+## 2. 필수 패키지 설치 (yarn 기준)
+
+### (1) 소셜 로그인 관련 패키지
+yarn add passport passport-local passport-jwt jsonwebtoken passport-google-oauth20 passport-kakao passport-naver-v2 express-session
+
+### (2) 주요 라이브러리 한 번에 설치
+yarn add express cors mongoose mongodb moment passport passport-local passport-jwt jsonwebtoken dotenv
+
+
+
+### (3) 개발용 자동 재시작 도구(nodemon) 설치
+yarn add nodemon
+
+---
+
+## 3. 환경변수(.env) 파일 생성
+
+- back 폴더 안에 `.env` 파일을 만들고 아래처럼 입력하세요:
+MONGO_URI=mongodb+srv://MungPick:mungpick123@app.kjht6xp.mongodb.net/mungpick?retryWrites=true&w=majority
+
+---
+
+## 4. 개발 서버 실행(테스트):
+nodemon app.js
+
+---
+
+- 코드 수정 시 자동으로 서버가 재시작됩니다.
+
+---
+
+## 5. DB 연결 및 테스트
+
+- 서버 실행 시 콘솔에 `MongoDB 연결 성공` 메시지가 뜨면 정상입니다.
+- 추가로, DB 연결 및 CRUD 테스트를 위해 아래 명령어로 테스트 파일을 실행할 수 있습니다:
+node testDb.js
+- 콘솔에 데이터가 잘 출력되면 DB 연결도 ok!
+
+---
+
+## 6. 폴더/파일 구조 안내:
+
+mungpick/
+  ├── back/
+  │   ├── app.js                # 메인 서버 파일
+  │   ├── config/               # 환경설정, DB 연결
+  │   ├── controllers/          # 기능별 컨트롤러
+  │   ├── models/               # DB 스키마
+  │   ├── routes/               # API 라우터
+  │   ├── middlewares/          # 미들웨어
+  │   ├── testDb.js             # DB 연결/CRUD 테스트용 파일
+  │   ├── .env                  # 환경변수 파일 (직접 생성)
+  │   ├── package.json
+  │   └── yarn.lock
+  └── front/
+      └── ...                   # 프론트엔드(React)
+
+---
+
+## 7. 기타 안내 및 주의사항 (!!!중요!!!!)
+
+- Node.js 18 이상 권장
+- import/export (ES6) 문법 사용 (package.json에 "type": "module" 추가해주세요)!!!!중요!!!!!
+- `.env` 파일은 git에 올리지 마세요! (민감 정보)!!!중요!!!!
+
+---
+
+// 루트 경로에 대한 환영 메시지 라우터 추가
+app.get('/', (req, res) => {
+  res.send('Mungpick 백엔드 서버에 오신 것을 환영합니다! 🎉');
+});
+
+---
+
+궁금한 점 있으면 언제든 질문해 주세요!  
+원하는 메시지로 바꿔도 됩니다.
