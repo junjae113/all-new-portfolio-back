@@ -28,6 +28,8 @@ import socketRouter from "./routes/socket/socketRouter.js";
 connect()
 
 const app = express()
+// 배포 환경(Render)은 프록시 뒤에서 동작 → https 주소를 제대로 인식하게 함 (소셜 로그인 콜백용)
+app.set("trust proxy", 1);
 const port = process.env.PORT || 8000;
 
 // 프론트엔드 주소 (배포 시 .env의 CLIENT_URL만 바꾸면 됨)
