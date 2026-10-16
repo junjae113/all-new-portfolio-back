@@ -13,6 +13,25 @@ const formatDate = (date) => {
     return moment(date).format('YYYY-MM-DD HH:mm:ss');
 };
 
+// 성격(charactor) 번호 → 저장할 문구
+const CHARACTOR_TITLES = {
+    1: "나는 개인싸! (누구와도 잘 지내요)",
+    2: "나를 따르라! (가만히 있지 못해요!)",
+    3: "나랑만 있어줘... (애착형이고 애교가 많아요)",
+    4: "조금 조심스럽개! (수줍음이 많아요)",
+};
+
+// 프론트에서 온 charactor 값을 저장 가능한 문구로 정리
+// - 1~4 (숫자 또는 "1" 같은 문자열) → 해당 문구
+// - 이미 문구면 그대로
+// - 빈 값('', null, undefined) → undefined (= 저장하지 않음)
+const normalizeCharactor = (value) => {
+    if (value === undefined || value === null) return undefined;
+    if (CHARACTOR_TITLES[value]) return CHARACTOR_TITLES[value];
+    const text = String(value).trim();
+    return text || undefined;
+};
+
 // 배열 안전 처리 유틸리티 함수
 const safeParseArray = (data, fieldName) => {
     console.log(`${fieldName} 원본 데이터:`, data, '타입:', typeof data);
@@ -40,9 +59,8 @@ const safeParseArray = (data, fieldName) => {
 // 1단계: 기본 회원가입 - DB에 저장하지 않고 임시 데이터만 반환
 export const registerUser = async (req, res) => {
     try {
-        console.log('받은 요청 데이터:', req.body);
+        // ⚠️ req.body 전체나 password를 로그로 남기지 않음 (평문 비밀번호 노출 방지)
         console.log('user_id:', req.body.user_id);
-        console.log('password:', req.body.password);
         console.log('name:', req.body.name);
         console.log('tel:', req.body.tel);
         console.log('birth:', req.body.birth);
@@ -87,13 +105,23 @@ export const registerUser = async (req, res) => {
             }
         }
         
+        // 비밀번호는 여기서 바로 암호화하고, 평문은 응답에 담지 않음
+        // 암호화된 값은 서버 비밀키로 서명한 '가입 토큰' 안에 넣어서 전달 (1시간 유효)
+        // → 프론트(localStorage)에는 평문 비밀번호가 남지 않고, 토큰은 위조·수정할 수 없음
+        const passwordHash = await bcrypt.hash(password, 10);
+        const signupToken = jwt.sign(
+            { purpose: 'signup', user_id, passwordHash },
+            process.env.SECRET_KEY,
+            { expiresIn: '1h' }
+        );
+
         // DB에 저장하지 않고 성공 응답만 반환
         res.status(200).json({
             registerSuccess: true,
             message: "기본 정보 입력 완료. 다음 단계로 진행해주세요.",
             tempData: {
                 user_id: user_id,
-                password: password,
+                signupToken: signupToken,
                 name: name,
                 tel: tel,
                 birth: birth,
@@ -174,7 +202,7 @@ export const completeRegistration = async (req, res) => {
     try {
         const { 
             // 1단계 데이터
-            user_id, password, name, tel, birth, email, ad_yn, pri_yn, type, isSocialLogin,
+            user_id, password, signupToken, name, tel, birth, email, ad_yn, pri_yn, type, isSocialLogin,
             // 2단계 데이터  
             dogProfile,
             // 3단계 데이터
@@ -218,14 +246,34 @@ export const completeRegistration = async (req, res) => {
         console.log('req.body.provider:', req.body.provider);
         console.log('소셜 로그인 감지 여부:', isSocialUser);
         console.log('정규화된 type:', normalizedType);
-        console.log('password 존재 여부:', !!password);
-        
-        // 일반 회원가입인 경우에만 password 필수
-        if (normalizedType === 'general' && !password) {
-            return res.status(400).json({
-                success: false,
-                message: "일반 회원가입의 경우 비밀번호가 필요합니다."
-            });
+        // 일반 회원가입인 경우 비밀번호(암호화된 값) 준비
+        // - 기본: 1단계에서 받은 signupToken을 검증해서 암호화된 비밀번호를 꺼냄
+        // - 예비: 토큰 없이 password가 직접 오면 여기서 암호화 (이전 방식 호환)
+        let hashedPassword = null;
+        if (normalizedType === 'general') {
+            if (signupToken) {
+                try {
+                    const payload = jwt.verify(signupToken, process.env.SECRET_KEY);
+                    if (payload.purpose !== 'signup' || payload.user_id !== user_id) {
+                        return res.status(400).json({ success: false, message: "가입 정보가 올바르지 않습니다." });
+                    }
+                    hashedPassword = payload.passwordHash;
+                } catch {
+                    return res.status(400).json({
+                        success: false,
+                        message: "가입 시간이 만료되었습니다. 처음부터 다시 진행해주세요."
+                    });
+                }
+            } else if (password) {
+                hashedPassword = await bcrypt.hash(password, 10);
+            }
+
+            if (!hashedPassword) {
+                return res.status(400).json({
+                    success: false,
+                    message: "일반 회원가입의 경우 비밀번호가 필요합니다."
+                });
+            }
         }
         
         // 1. user_id 중복 확인 (최종 확인)
@@ -264,8 +312,6 @@ export const completeRegistration = async (req, res) => {
                     detectedProvider = 'google';
                 } else if (req.body.provider === 'k' || type === 'k') {
                     detectedProvider = 'kakao';
-                } else if (req.body.provider === 'n' || type === 'n') {
-                    detectedProvider = 'naver';
                 } else if (req.body.isSocialLogin) {
                     // isSocialLogin이 true인데 provider가 없으면 기본값
                     detectedProvider = 'google'; // 구글이 가장 일반적
@@ -277,6 +323,16 @@ export const completeRegistration = async (req, res) => {
             console.log('detectedProvider:', detectedProvider);
             console.log('isSocialUser:', isSocialUser);
             
+            // dogProfile의 charactor(성격) 정리
+            if (dogProfile) {
+                const charactor = normalizeCharactor(dogProfile.charactor);
+                if (charactor) {
+                    dogProfile.charactor = charactor;
+                } else {
+                    delete dogProfile.charactor; // 빈 문자열로 저장하지 않음
+                }
+            }
+
             // dogProfile의 birthDate 형식 변환
             if (dogProfile && dogProfile.birthDate) {
                 dogProfile.birthDate = new Date(dogProfile.birthDate).toISOString().split('T')[0];
@@ -299,10 +355,8 @@ export const completeRegistration = async (req, res) => {
                 healthProfile: healthProfile || {}
             };
             
-            // 일반 회원가입인 경우에만 비밀번호 암호화하여 추가
-            if (normalizedType === 'general' && password) {
-                const saltRounds = 10;
-                const hashedPassword = await bcrypt.hash(password, saltRounds);
+            // 일반 회원가입인 경우에만 암호화된 비밀번호 추가
+            if (normalizedType === 'general' && hashedPassword) {
                 userData.password = hashedPassword;
             }
             
@@ -413,6 +467,32 @@ export const modifyUser = async (req, res) => {
         // 날짜 형식 처리
         if (filteredData.birth) {
             filteredData.birth = new Date(filteredData.birth).toISOString().split('T')[0];
+        }
+
+        // dogProfile 업데이트 처리
+        if (updateData.dogProfile) {
+            filteredData.dogProfile = updateData.dogProfile;
+
+            // charactor(성격) 정리: 빈 값이 오면 기존 값을 유지
+            const charactor = normalizeCharactor(filteredData.dogProfile.charactor);
+            if (charactor) {
+                filteredData.dogProfile.charactor = charactor;
+            } else {
+                const existing = await User.findOne(
+                    { user_id: user_id },
+                    { 'dogProfile.charactor': 1 }
+                ).lean();
+                filteredData.dogProfile.charactor = existing?.dogProfile?.charactor;
+            }
+
+            if (filteredData.dogProfile.birthDate) {
+                filteredData.dogProfile.birthDate = new Date(filteredData.dogProfile.birthDate).toISOString().split('T')[0];
+            }
+        }
+
+        // healthProfile 업데이트 처리
+        if (updateData.healthProfile) {
+            filteredData.healthProfile = updateData.healthProfile;
         }
 
         const updatedUser = await User.findOneAndUpdate(
@@ -591,8 +671,8 @@ export const modifyPicture = async (req, res) => {
             });
         }
         
-        // 상대경로로 프로필 이미지 URL 생성
-        const profileImageUrl = `/uploads/profile/${profileImage.filename}`;
+        // 절대 URL로 프로필 이미지 URL 생성 (프론트에서 바로 사용 가능)
+        const profileImageUrl = `${req.protocol}://${req.get('host')}/uploads/profile/${profileImage.filename}`;
         
         // 프로필 이미지 업데이트
         const updatedUser = await User.findOneAndUpdate(

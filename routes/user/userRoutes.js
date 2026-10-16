@@ -31,6 +31,14 @@ userRouter.get("/", getAllUsers);
 // 매칭용 사용자 목록 조회
 userRouter.get("/matching", getMatchingUsers);
 
+// 고정 경로(/update-thumbnail, /update-mbti)는 반드시 /:user_id 보다 위에 둬야 함
+//    아래에 있으면 "update-mbti"가 user_id로 인식돼 modifyUser가 대신 실행됨
+// 썸네일 이미지 변경
+userRouter.put("/update-thumbnail", upload.single('profileImage'), modifyPicture);
+
+// MBTI 결과 저장
+userRouter.put("/update-mbti", updateDogMbti);
+
 // 특정 회원 조회
 userRouter.get("/:user_id", getUserById);
 
@@ -39,14 +47,5 @@ userRouter.put("/:user_id", modifyUser);
 
 // 회원 탈퇴
 userRouter.delete("/:user_id", removeUser);
-
-// 전체 회원 삭제 (관리자용)
-userRouter.delete("/", deleteAllUsers);
-
-// 썸네일 이미지 변경
-userRouter.put("/update-thumbnail", upload.single('profileImage'), modifyPicture);
-
-// MBTI 결과 저장
-userRouter.put("/update-mbti", updateDogMbti);
 
 export default userRouter;

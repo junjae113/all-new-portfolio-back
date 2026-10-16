@@ -4,7 +4,6 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { ExtractJwt, Strategy as JwtStrategy } from "passport-jwt";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as KakaoStrategy } from "passport-kakao";
-import { Strategy as NaverStrategy } from "passport-naver-v2";
 import User from "../models/userSchema.js";
 import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
@@ -163,6 +162,12 @@ const kakaoVerify = async (accessToken, refreshToken, profile, done) => {
         if (email) {
             exUser = await User.findOne({email: email}).lean();
         }
+
+        // 이메일 제공에 동의하지 않은 경우를 대비해, 소셜 ID로 만든 아이디로도 기존 회원을 찾음
+        // (이게 없으면 이메일 없는 회원은 로그인할 때마다 새 회원으로 취급돼 가입을 반복하게 됨)
+        if (!exUser) {
+            exUser = await User.findOne({user_id: `kakao_${id}`}).lean();
+        }
         
         // 만약 유저가 없다면 새 사용자로 처리 (DB에는 아직 저장하지 않음)
         if(!exUser){
@@ -229,99 +234,12 @@ const kakaoVerify = async (accessToken, refreshToken, profile, done) => {
     }
 }
 
-// 네이버 로그인 설정
-const naverConfig = {
-    clientID : process.env.NAVER_CLIENT_ID,
-    clientSecret : process.env.NAVER_CLIENT_SECRET,
-    callbackURL : "/auth/naver/callback"
-}
-
-// 네이버 로그인 검증
-const naverVerify = async (accessToken, refreshToken, profile, done) => {
-    console.log("naverProfile", profile)
-    
-    try {
-        const {id, displayName, emails} = profile;
-        const email = emails?.[0]?.value;
-        const name = displayName || `naver_${id}`;
-        
-        let exUser = null;
-        if (email) {
-            exUser = await User.findOne({email: email}).lean();
-        }
-        
-        // 만약 유저가 없다면 새 사용자로 처리 (DB에는 아직 저장하지 않음)
-        if(!exUser){
-            // user_id 생성
-            let user_id = `naver_${id}`;
-            let counter = 1;
-            
-            // user_id 중복 확인 및 생성
-            while (await User.findOne({user_id: user_id})) {
-                user_id = `naver_${id}_${counter}`;
-                counter++;
-            }
-
-            // 새 사용자 정보를 responseData에 포함 (DB에는 아직 저장하지 않음)
-            exUser = {
-                user_id: user_id,
-                email: email,
-                name: name,
-                type: 'social', // 모든 소셜 로그인은 'social'로 통일
-                provider: 'naver', // provider 필드 추가
-                naverId: id, // 네이버 ID 저장
-                profileComplete: false,
-                isNewUser: true
-            };
-        } else {
-            // 기존 사용자는 profileComplete 상태 확인
-            exUser.isNewUser = !exUser.profileComplete;
-            // 기존 사용자도 name과 email 정보가 있는지 확인
-            if (!exUser.name) exUser.name = name;
-            if (!exUser.email) exUser.email = email;
-            // 기존 사용자도 provider 정보 업데이트
-            if (!exUser.provider) exUser.provider = 'naver';
-        }
-
-        const accessToken = jwt.sign(
-            {
-                user_id: exUser.user_id,
-                issuer: 'mungpick',
-            },
-            SECRET_KEY,
-            {
-                expiresIn: '24h'
-            }
-        )
-
-        // 프로필 완료 여부와 함께 응답
-        const responseData = {
-            accessToken,
-            user_id: exUser.user_id,
-            name: exUser.name,
-            email: exUser.email,
-            type: exUser.type,
-            provider: exUser.provider, // provider 추가
-            profileComplete: exUser.profileComplete || false,
-            isNewUser: exUser.isNewUser || !exUser.profileComplete
-        }
-
-        done(null, responseData)
-
-    } catch (error) {
-        console.log("naverVerify Error")
-        console.error(error)
-        done(error)
-    }
-}
- 
 // passport 초기화
 const initializePassport = () => {
     passport.use('local', new LocalStrategy(passwordConfig, passwordVerify))
     passport.use('jwt', new JwtStrategy(jwtConfig, jwtVerify))
     passport.use('google', new GoogleStrategy(googleConfig, googleVerify))
     passport.use('kakao', new KakaoStrategy(kakaoConfig, kakaoVerify))
-    passport.use('naver', new NaverStrategy(naverConfig, naverVerify))
 }
 
 export default initializePassport;

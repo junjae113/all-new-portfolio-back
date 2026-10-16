@@ -29,10 +29,6 @@ const userSchema = new Schema({
         type: String,
         description: "구글 로그인 ID"
     },
-    naverId: {
-        type: String,
-        description: "네이버 로그인 ID"
-    },
     kakaoId: {
         type: String,
         description: "카카오 로그인 ID"
@@ -45,7 +41,7 @@ const userSchema = new Schema({
     },
     provider: {
         type: String,
-        enum: ['google', 'kakao', 'naver'],
+        enum: ['google', 'kakao'],
         default: null,
         description: "소셜 로그인 제공자"
     },

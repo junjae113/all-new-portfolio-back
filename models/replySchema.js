@@ -6,6 +6,7 @@ const replySchema = new Schema({
   post_id: { type: String, required: true }, // 게시글 ID
   user_id: { type: String, required: true }, // 회원 ID
   user_id2: { type: String }, // 답글 대상 회원 ID (필요시)
+  parent_reply_id: { type: String, default: null }, // 대댓글이면 부모 댓글 ID, 일반 댓글이면 null
   reply_content: { type: String, required: true }, // 댓글 내용
   created_at: { type: Date, default: Date.now }, // 댓글 작성 시간
 });

@@ -1,3 +1,5 @@
+// .env를 가장 먼저 불러오기 (다른 파일들이 import될 때 이미 환경변수가 준비되도록)
+import "dotenv/config";
 
 // bodyParser는 Express 4.16+에서 내장되어 있음
 import cors from "cors";
@@ -26,7 +28,10 @@ import socketRouter from "./routes/socket/socketRouter.js";
 connect()
 
 const app = express()
-const port = 8000;
+const port = process.env.PORT || 8000;
+
+// 프론트엔드 주소 (배포 시 .env의 CLIENT_URL만 바꾸면 됨)
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
 // dotenv 사용
 dotenv.config()
@@ -36,7 +41,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { 
     // origin: "*",
-    origin: 'http://localhost:3000',
+    origin: CLIENT_URL,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
@@ -47,8 +52,8 @@ const io = new Server(server, {
 // app.use()는 미들웨어로서,
 // 어떤 요청이든 지정된 로직보다 먼저 작업한다. 즉 전처리이다.
 app.use(cors({
-  origin : "http://localhost:3000",
-  method : ['GET', 'POST', 'PUT', 'DELETE'],
+  origin : CLIENT_URL,
+  methods : ['GET', 'POST', 'PUT', 'DELETE'],
   // credentials : true
 }))
 
