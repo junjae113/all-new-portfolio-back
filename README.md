@@ -12,7 +12,7 @@
 
 | 경로 | 설명 |
 |---|---|
-| `/auth` | 회원가입, 로그인(local · JWT), 카카오 · 구글 OAuth |
+| `/auth` | 회원가입, 로그인(local · JWT), 카카오 OAuth |
 | `/users` | 회원 · 강아지 프로필 |
 | `/calendar/api` | 일정 · 일기 |
 | `/community` | 게시글 · 댓글 |
@@ -25,7 +25,7 @@
 
 ```
 ├─ app.js          # 서버 · 미들웨어 · 라우터 · Socket.io 설정
-├─ auth/           # Passport 전략 (local · JWT · Google · Kakao)
+├─ auth/           # Passport 전략 (local · JWT · Kakao)
 ├─ connect/        # MongoDB 연결
 ├─ models/         # Mongoose 스키마
 ├─ routes/         # 경로 → 컨트롤러 연결
